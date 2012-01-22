@@ -1,0 +1,5 @@
+﻿name: openrasta-structuremap
+depends: openwrap anchored content
+depends: structuremap
+directory-structure: {scope: Tests=tests}
+depends: openrasta-core
