@@ -9,6 +9,7 @@ namespace OpenRasta.DI.StructureMap
 	public class StructureMapDependencyResolver : DependencyResolverCore, IDependencyResolver
 	{
 		private readonly IContainer _container;
+		private readonly object _locker = new object();
 
 		public StructureMapDependencyResolver()
 			: this(ObjectFactory.Container)
@@ -47,22 +48,34 @@ namespace OpenRasta.DI.StructureMap
 
 		protected override void AddDependencyInstanceCore(Type serviceType, object instance, DependencyLifetime lifetime)
 		{
-			_container.Configure(cfg => cfg.For(serviceType).LifecycleIs(GetLifecycle(lifetime)).Use(instance));
+			lock (_locker)
+			{
+				_container.Configure(cfg => cfg.For(serviceType).LifecycleIs(GetLifecycle(lifetime)).Use(instance));
+			}
 		}
 
 		protected override IEnumerable<TService> ResolveAllCore<TService>()
 		{
-			return _container.GetAllInstances<TService>();
+			lock (_locker)
+			{
+				return _container.GetAllInstances<TService>();
+			}
 		}
 
 		protected override object ResolveCore(Type serviceType)
 		{
-			return _container.GetInstance(serviceType);
+			lock (_locker)
+			{
+				return _container.GetInstance(serviceType);
+			}
 		}
 
 		public bool HasDependency(Type serviceType)
 		{
-			return _container.TryGetInstance(serviceType) != null;
+			lock (_locker)
+			{
+				return _container.TryGetInstance(serviceType) != null;
+			}
 		}
 
 		public bool HasDependencyImplementation(Type serviceType, Type concreteType)
