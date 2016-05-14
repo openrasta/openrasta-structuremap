@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OpenRasta.Diagnostics;
 using StructureMap;
+using StructureMap.Pipeline;
 
 namespace OpenRasta.DI.StructureMap
 {
 	public class StructureMapDependencyResolver : DependencyResolverCore, IDependencyResolver
 	{
 		private readonly IContainer _container;
+		private readonly object _locker = new object();
 
 		public StructureMapDependencyResolver()
 			: this(ObjectFactory.Container)
@@ -17,6 +20,7 @@ namespace OpenRasta.DI.StructureMap
 		public StructureMapDependencyResolver(IContainer container)
 		{
 			_container = container;
+			_container.Configure(ex => ex.FillAllPropertiesOfType<ILogger>());
 		}
 
 		protected override void AddDependencyCore(Type serviceType, Type concreteType, DependencyLifetime lifetime)
@@ -46,22 +50,34 @@ namespace OpenRasta.DI.StructureMap
 
 		protected override void AddDependencyInstanceCore(Type serviceType, object instance, DependencyLifetime lifetime)
 		{
-			_container.Configure(cfg => cfg.For(serviceType).LifecycleIs(GetLifecycle(lifetime)).Use(instance));
+			lock (_locker)
+			{
+				_container.Configure(cfg => cfg.For(serviceType).LifecycleIs(GetLifecycle(lifetime)).Use(instance));
+			}
 		}
 
 		protected override IEnumerable<TService> ResolveAllCore<TService>()
 		{
-			return _container.GetAllInstances<TService>();
+			lock (_locker)
+			{
+				return _container.GetAllInstances<TService>();
+			}
 		}
 
 		protected override object ResolveCore(Type serviceType)
 		{
-			return _container.GetInstance(serviceType);
+			lock (_locker)
+			{
+				return _container.GetInstance(serviceType);
+			}
 		}
 
 		public bool HasDependency(Type serviceType)
 		{
-			return _container.TryGetInstance(serviceType) != null;
+			lock (_locker)
+			{
+				return _container.TryGetInstance(serviceType) != null;
+			}
 		}
 
 		public bool HasDependencyImplementation(Type serviceType, Type concreteType)
@@ -74,7 +90,7 @@ namespace OpenRasta.DI.StructureMap
 
 		public void HandleIncomingRequestProcessed()
 		{
-			// meh
+			HttpContextLifecycle.DisposeAndClearAll();
 		}
 	}
 }
